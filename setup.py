@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name='requestez',
-    version='0.1.0',
+    version='0.1.2',
     author='shashstormer',
     description='A simpler interface for scraping with some basic parsing, aes encryption decryption and some logging utils.',
     long_description=long_description,
@@ -20,7 +20,7 @@ setup(
         'License :: OSI Approved :: MIT License',
         'Programming Language :: Python :: 3.9',
         'Topic :: Software Development :: Libraries',
-        'Topic :: Networking :: Web Scraping',
+        'Topic :: Internet :: WWW/HTTP',
     ],
     project_urls={
         'GitHub': 'https://github.com/shashstormer/requestez',

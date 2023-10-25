@@ -5,7 +5,7 @@ import os
 from m3u8 import parse as _parse
 import requests.exceptions
 from requests.structures import CaseInsensitiveDict
-from helpers import log, pbar
+from .helpers import log, pbar
 
 
 class Session:

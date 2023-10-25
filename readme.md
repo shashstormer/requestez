@@ -15,7 +15,7 @@ RequestEZ provides a simple interface for making HTTP requests. You can create a
 ```python
 from requestez import Session
 session = Session()
-response = session.get("https://example.com")
+response: str = session.get("https://example.com")  # refer to inline documentation for more options
 print(response)
 ```
 ### 2. AES Encryption/Decryption:
@@ -24,12 +24,12 @@ You can use RequestEZ to perform AES encryption and decryption of data.
 ```python
 from requestez.encryption import aes_enc, aes_dec
 
-key = "your_32_byte_secret_key"
-iv = "your_16_byte_initialization_vector"
-data = "your_data_to_encrypt"
+key: bytes = b"your_32_byte_secret_key"
+iv: bytes = b"your_16_byte_initialization_vector"
+data: str = "your_data_to_encrypt"
 
-encrypted_data = aes_enc(key, iv, data)
-decrypted_data = aes_dec(key, iv, encrypted_data)
+encrypted_data: str = aes_enc(key, iv, data)
+decrypted_data: str = aes_dec(key, iv, encrypted_data)
 
 print("Encrypted:", encrypted_data)
 print("Decrypted:", decrypted_data)
@@ -72,10 +72,11 @@ RequestEZ provides some useful and colorful logging utilities. You can use them 
 # others not tested
 import time
 from requestez.helpers import log, set_log_level, pbar
-log("Hello World", color="green" ,log_level="info") # logs hello world
-set_log_level("debug") # sets log level to debug
-log("Hello World", color="green" ,log_level="info") # logs nothing to the console
-log("Hello World", color="red" ,log_level="debug") # logs red hello world to console
+set_log_level("debug")
+log("Hello World", color="green" ,log_level="debug") # logs hello world
+set_log_level("info") # sets log level to debug
+log("Hello World", color="green" ,log_level="info") # logs red hello world to console
+log("Hello World", color="red" ,log_level="debug") # logs nothing to console
 # Refer to inline documentation for more options
 
 
@@ -83,6 +84,8 @@ progress_printer = pbar(total=10, prefix='Progress:', suffix='', length=35, colo
 for i in range(11):
     time.sleep(1)  # Simulate some work
     progress_printer.update(i)
+    # it is equivalent to 
+    # progress_printer.update(plus=1) -> this is done by default in the tqdm module
 # Refer to inline documentation for more options
 ```
 #### the order of level priority is as follows:

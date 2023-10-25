@@ -93,7 +93,10 @@ class LOGGER:
         name = cur_stack.function
         line = cur_stack.lineno
         file = cur_stack.filename
-        rel_path = os.path.relpath(file, start=os.getcwd())
+        try:
+            rel_path = os.path.relpath(file, start=os.getcwd())
+        except ValueError:
+            rel_path = file
         if name == "<module>":
             name = file.split("\\")[-1]
         try:
