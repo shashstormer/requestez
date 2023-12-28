@@ -12,8 +12,11 @@ setup(
     long_description_content_type="text/markdown",
     packages=find_packages(),
     install_requires=[
-        'requests', "m3u8", "pycryptodome", "yarl", "regex", "beautifulsoup4", "js2xml", "xmltodict"
+        'requests', "m3u8", "pycryptodome", "yarl", "regex", "beautifulsoup4", "js2xml", "xmltodict", "dbdictionary",
     ],
+    extras_require={
+        "optional": ["moviepy[optional]"]
+    },
     classifiers=[
         'Development Status :: 4 - Beta',
         'Intended Audience :: Developers',

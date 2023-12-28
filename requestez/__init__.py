@@ -3,15 +3,19 @@ import time
 import requests
 import os
 from m3u8 import parse as _parse
-import requests.exceptions
 from requests.structures import CaseInsensitiveDict
 from .helpers import log, pbar
+try:
+    from moviepy.video.io.VideoFileClip import VideoFileClip
+    MOVIEPY_AVAILABLE = True
+except ImportError:
+    MOVIEPY_AVAILABLE = False
 
 
 class Session:
     def __init__(self, human_browsing=False):
         """
-        :param human_browsing: not required in most cases, you may use this in case of ratelimits or anti bot measures
+        :param human_browsing: not required in most cases, you may use this in case of ratelimits or anti-bot measures
         """
         self.session = requests.Session()
         self.headers = CaseInsensitiveDict({
@@ -20,7 +24,8 @@ class Session:
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,'
                       'image/webp,image/apng,*/*;q=0.8',
             'Accept-Language': 'en-US,en;q=0.9',
-            # 'Accept-Encoding': 'gzip, deflate, br',  # you can add this if you want but will have to implement decompression
+            # 'Accept-Encoding': 'gzip, deflate, br',
+            # you can add this if you want but will have to implement decompression
             'Connection': 'keep-alive',
             'Referer': None,
             'Cache-Control': 'no-cache',
@@ -106,16 +111,16 @@ class Session:
         else:
             resp = response
         if notify:
-            if resp.status_code == 200:
+            if response.status_code == 200:
                 log("\rgot : ", response.url, "\ncode : ", response.status_code, color="green")
-            elif 200 < resp.status_code < 400:
+            elif 200 < response.status_code < 400:
                 log("\rgot : ", response.url, "\ncode : ", response.status_code, color="yellow")
             else:
                 log("\rgot : ", response.url, "\ncode : ", response.status_code, color="red")
         if return_final_page_url:
             resp = {"resp": resp, "url": response.url}
         if return_cookies:
-            if type(resp) == dict:
+            if isinstance(resp, dict):
                 resp.update({"cookies": response.cookies})
             else:
                 resp = {"resp": resp, "cookies": response.cookies}
@@ -158,7 +163,7 @@ class Session:
 
     def download_m3u8(self, url, folder_name, headers=None, color="reset"):
         """
-        method to download m3u8 file and all its segments in a folder
+        method to download m3u8 file and all its segments in a folder.
         :param url: url of m3u8 file to be downloaded IT SHOULD NOT BE A MASTER PLAYLIST (MASTER.m3u8)
         :param folder_name: folder name to be saved as
         :param headers: additional headers to be sent while requesting
@@ -174,12 +179,13 @@ class Session:
         response = self.session.get(url, headers=_headers)
         playlist = _parse(response.text)
         segments = playlist['segments']
-        self._download_segments(segments, folder_name, color=color)
-        return response.text
+        domain_start = "/".join(url.split('/')[:-1])
+        count, paths = self._download_segments(segments, folder_name, domain=domain_start, color=color)
+        return [response.text, count, paths]
 
-    def _download_segments(self, segments, folder_name, color="reset"):
+    def _download_segments(self, segments, folder_name, domain, color="reset"):
         """
-        method to download segments of m3u8 file
+        method to download segments of a m3u8 file
         :param segments: list from m3u8.parse()['segments']
         :param folder_name: folder name to be saved as
         :param color: color of progress bar, default is reset
@@ -189,14 +195,47 @@ class Session:
             os.makedirs(folder_name)
         bar = pbar(total=len(segments), unit='segment', color=color)
         seg_download_count = 0
+        file_names = []
         for segment in segments:
-            segment_url = segment['uri']
+            segment_url = f"{domain}/{segment['uri']}"
             segment_file_name = segment_url.split("?")[0].split("/")[-1]
             segment_file_path = os.path.join(folder_name, segment_file_name)
             bar.update(seg_download_count, new_line=True)
+            file_names.append(segment_file_path)
             self.download(segment_url, segment_file_path, bar_end="\r\033[F\033[F", color=color)
             seg_download_count += 1
-        return seg_download_count
+        return [seg_download_count, file_names]
+
+    @staticmethod
+    def _join_segments(output_file_name, segment_paths, color="reset"):
+        if not MOVIEPY_AVAILABLE:
+            log("moviepy not installed", color="red", log_level="c")
+            log("install moviepy to use this feature", color="red", log_level="c")
+            log("pip install moviepy[optional]", color="red", log_level="c")
+            log("or", color="red", log_level="c")
+            log("pip install requestez[optional]", color="red", log_level="c")
+            raise ImportError("moviepy not installed")
+        log("joining segments", color=color)
+        bar = pbar(total=len(segment_paths), unit='segment', color=color)
+        for segment_path in segment_paths:
+            bar.update(plus=1, new_line=False)
+            clip = VideoFileClip(segment_path)
+            clip.write_videofile(output_file_name, append=True, codec='libx264', audio_codec='aac')
+
+    def download_m3u8_as_mp4(self, url, file_name, headers=None, color="reset"):
+        """
+        method to download m3u8 file and all its segments in a folder.
+        :param url: url of m3u8 file to be downloaded IT SHOULD NOT BE A MASTER PLAYLIST (MASTER.m3u8)
+        :param file_name: file name to be saved as
+        :param headers: additional headers to send while requesting
+        :param color: color of progress bar, default is reset
+        :return:
+        """
+        folder_name = file_name.split(".")[0]
+        playlist, count, paths = self.download_m3u8(url, folder_name, headers=headers, color=color)
+        output_file_name = file_name
+        self._join_segments(output_file_name, paths, color=color)
+        return [playlist, count, paths]
 
     def post(self, url, headers=None, post=True, body=None, notify=True, text=True, return_final_page_url=False,
              return_cookies=False, set_html=False, sleep_for_anti_bot=True):
