@@ -2,9 +2,7 @@ import yarl
 from bs4 import BeautifulSoup
 from html import unescape, escape
 import re
-import js2xml
 import m3u8 as _m3u8
-import xmltodict
 import json
 import regex as regex_orignal
 
@@ -113,6 +111,8 @@ def regex(string, pattern):
 
 
 def js(string):
+    import js2xml
+    import xmltodict
     xml_data = js2xml.parse(string)
     json_data = load(json.dumps(xmltodict.parse(xml_data.toxml()), indent=4))
     return json_data

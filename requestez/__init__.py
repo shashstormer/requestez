@@ -5,10 +5,14 @@ import os
 from m3u8 import parse as _parse
 from requests.structures import CaseInsensitiveDict
 from .helpers import log, pbar
+import threading
+
 try:
     from moviepy.video.io.VideoFileClip import VideoFileClip
+
     MOVIEPY_AVAILABLE = True
 except ImportError:
+    VideoFileClip = None
     MOVIEPY_AVAILABLE = False
 
 
@@ -48,7 +52,7 @@ class Session:
         :param notify: if True, will print the url and status code
         :return: {
             "to": "url",
-            "headers": "headers",  # caseinsensitive dict
+            "headers": "headers",  # CaseInsensitive dict
             "cookies": "cookies"   # requests.cookies.RequestsCookieJar
         }
         """
@@ -126,9 +130,10 @@ class Session:
                 resp = {"resp": resp, "cookies": response.cookies}
         return resp
 
-    def download(self, url, file_name, headers=None, continue_download=True, bar_end="\n", color="reset", ):
+    def download(self, url, file_name, headers=None, continue_download=True, bar_end="\n", color="reset", quiet=False):
         """
         method to download any file, it will resume download if file already exists
+        :param quiet: True to not print anything, False to print Status
         :param url: url to be downloaded
         :param file_name: file name to be saved as
         :param headers: additional headers to be sent while requesting
@@ -148,22 +153,28 @@ class Session:
         except KeyError:
             cookies = None
         if os.path.exists(file_name):
-            if not continue_download:
+            if not continue_download and not quiet:
                 raise FileExistsError("file already exists")
+            if not continue_download and quiet:
+                return False
             file_size = os.path.getsize(file_name)
             headers['Range'] = f'bytes={file_size}-'
         response = self.session.get(url, headers=_headers, cookies=cookies, stream=True)
 
         total_size = int(response.headers.get('content-length', 0))
         with open(file_name, 'ab') as file:
-            _pbar = pbar(total=total_size, unit='kb')
+            if not quiet:
+                _pbar = pbar(total=total_size, unit='kb')
             for chunk in response.iter_content(chunk_size=8192):
                 file.write(chunk)
-                _pbar.update(plus=len(chunk), color=color, finish=bar_end)
+                if not quiet:
+                    _pbar.update(plus=len(chunk), color=color, finish=bar_end)
 
-    def download_m3u8(self, url, folder_name, headers=None, color="reset"):
+    def download_m3u8(self, url, folder_name, headers=None, color="reset", multiple_threads=False, max_threads=5):
         """
         method to download m3u8 file and all its segments in a folder.
+        :param max_threads: Max threads to spawn when downloading in multithreaded mode.
+        :param multiple_threads: Download using multiple threads (for servers with each request speed cap will improve speed but may download slower if insufficient bandwidth on client)
         :param url: url of m3u8 file to be downloaded IT SHOULD NOT BE A MASTER PLAYLIST (MASTER.m3u8)
         :param folder_name: folder name to be saved as
         :param headers: additional headers to be sent while requesting
@@ -180,10 +191,11 @@ class Session:
         playlist = _parse(response.text)
         segments = playlist['segments']
         domain_start = "/".join(url.split('/')[:-1])
-        count, paths = self._download_segments(segments, folder_name, domain=domain_start, color=color)
+        count, paths = self._download_segments(segments, folder_name, domain=domain_start, color=color,
+                                               multiple_threads=multiple_threads, max_threads=max_threads)
         return [response.text, count, paths]
 
-    def _download_segments(self, segments, folder_name, domain, color="reset"):
+    def _download_segments(self, segments, folder_name, domain, color="reset", multiple_threads=False, max_threads=5):
         """
         method to download segments of a m3u8 file
         :param segments: list from m3u8.parse()['segments']
@@ -196,15 +208,37 @@ class Session:
         bar = pbar(total=len(segments), unit='segment', color=color)
         seg_download_count = 0
         file_names = []
+        thread_list = []
         for segment in segments:
-            segment_url = f"{domain}/{segment['uri']}"
+            if not segment['uri'].startswith("http"):
+                segment_url = f"{domain}/{segment['uri']}"
+            else:
+                segment_url = segment['uri']
             segment_file_name = segment_url.split("?")[0].split("/")[-1]
             segment_file_path = os.path.join(folder_name, segment_file_name)
-            bar.update(seg_download_count, new_line=True)
+            if multiple_threads:
+                bar.update(seg_download_count, new_line=False)
+            else:
+                bar.update(seg_download_count, new_line=True)
             file_names.append(segment_file_path)
-            self.download(segment_url, segment_file_path, bar_end="\r\033[F\033[F", color=color)
+            if multiple_threads:
+                while len(thread_list) >= max_threads:
+                    for thread in thread_list:
+                        if not thread.is_alive():
+                            thread_list.remove(thread)
+                thread = threading.Thread(target=self.download, args=(
+                segment_url, segment_file_path, None, False, "\r\033[F\033[F", color, True))
+                thread.start()
+                thread_list.append(thread)
+            else:
+                self.download(segment_url, segment_file_path, bar_end="\r\033[F\033[F", color=color)
             seg_download_count += 1
-        return [seg_download_count, file_names]
+        else:
+            while len(thread_list) != 0:
+                for thread in thread_list:
+                    if not thread.is_alive():
+                        thread_list.remove(thread)
+        return [seg_download_count, [file_names, folder_name]]
 
     @staticmethod
     def _join_segments(output_file_name, segment_paths, color="reset"):
@@ -214,28 +248,32 @@ class Session:
             log("pip install moviepy[optional]", color="red", log_level="c")
             log("or", color="red", log_level="c")
             log("pip install requestez[optional]", color="red", log_level="c")
-            raise ImportError("moviepy not installed")
+            return False
         log("joining segments", color=color)
         bar = pbar(total=len(segment_paths), unit='segment', color=color)
         for segment_path in segment_paths:
             bar.update(plus=1, new_line=False)
             clip = VideoFileClip(segment_path)
             clip.write_videofile(output_file_name, append=True, codec='libx264', audio_codec='aac')
+        return True
 
-    def download_m3u8_as_mp4(self, url, file_name, headers=None, color="reset"):
+    def download_m3u8_as_mp4(self, url, file_name, headers=None, color="reset", multiple_threads=False, max_threads=5):
         """
         method to download m3u8 file and all its segments in a folder.
+        :param max_threads: Max threads to spawn when downloading in multithreaded mode.
+        :param multiple_threads: Download using multiple threads (for servers with each request speed cap will improve speed but may download slower if insufficient bandwidth on client)
         :param url: url of m3u8 file to be downloaded IT SHOULD NOT BE A MASTER PLAYLIST (MASTER.m3u8)
         :param file_name: file name to be saved as
-        :param headers: additional headers to send while requesting
+        :param headers: additional headers to be sent while requesting
         :param color: color of progress bar, default is reset
         :return:
         """
         folder_name = file_name.split(".")[0]
-        playlist, count, paths = self.download_m3u8(url, folder_name, headers=headers, color=color)
+        playlist, count, paths = self.download_m3u8(url, folder_name, headers=headers, color=color,
+                                                    multiple_threads=multiple_threads, max_threads=max_threads)
         output_file_name = file_name
-        self._join_segments(output_file_name, paths, color=color)
-        return [playlist, count, paths]
+        success = self._join_segments(output_file_name, paths[0], color=color)
+        return [playlist, count, paths, success]
 
     def post(self, url, headers=None, post=True, body=None, notify=True, text=True, return_final_page_url=False,
              return_cookies=False, set_html=False, sleep_for_anti_bot=True):

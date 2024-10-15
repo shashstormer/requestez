@@ -117,6 +117,8 @@ class pbar:
         elapsed_time = secondsToText(self.total_time.total_seconds())
         if elapsed_time == "00:00:00":
             elapsed_time = "Unknown"
+        if self.total == 0:
+            return
         percent = (progress / self.total) * 100
         self.rate = rate
         if self.started:

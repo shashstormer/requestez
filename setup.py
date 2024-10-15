@@ -5,17 +5,17 @@ with open("README.md", "r") as fh:
 
 setup(
     name='requestez',
-    version='0.1.2',
+    version='0.1.4',
     author='shashstormer',
     description='A simpler interface for scraping with some basic parsing, aes encryption decryption and some logging utils.',
     long_description=long_description,
     long_description_content_type="text/markdown",
     packages=find_packages(),
     install_requires=[
-        'requests', "m3u8", "pycryptodome", "yarl", "regex", "beautifulsoup4", "js2xml", "xmltodict", "dbdictionary",
+        'requests', "m3u8", "pycryptodome", "yarl", "regex", "beautifulsoup4", "dbdictionary",
     ],
     extras_require={
-        "optional": ["moviepy[optional]"]
+        "optional": ["moviepy[optional]", "js2xml", "xmltodict"]
     },
     classifiers=[
         'Development Status :: 4 - Beta',
