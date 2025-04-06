@@ -364,7 +364,7 @@ def log(*messages, sep=" ", end="\n", flush=False, color=None, stack=False, log_
             print("", end=end)
 
 
-def info(*messages, sep=" ", end="\n", flush=False, color=None, stack=False, msg="args : ", full_stack=False):
+def info(*messages, sep=" ", end="\n", flush=False, color="blue", stack=False, msg="args : ", full_stack=False):
     """
     Wrapper for log log_level=info
     """
@@ -380,7 +380,7 @@ def debug(*messages, sep=" ", end="\n", flush=False, color=None, stack=False, ms
         full_stack=full_stack)
 
 
-def warning(*messages, sep=" ", end="\n", flush=False, color=None, stack=False, msg="args : ", full_stack=False):
+def warning(*messages, sep=" ", end="\n", flush=False, color="yellow", stack=False, msg="args : ", full_stack=False):
     """
         Wrapper for log log_level=warning
     """
@@ -388,7 +388,7 @@ def warning(*messages, sep=" ", end="\n", flush=False, color=None, stack=False, 
         full_stack=full_stack)
 
 
-def error(*messages, sep=" ", end="\n", flush=False, color=None, stack=False, msg="args : ", full_stack=False):
+def error(*messages, sep=" ", end="\n", flush=False, color="red", stack=False, msg="args : ", full_stack=False):
     """
         Wrapper for log log_level=error
     """
@@ -396,7 +396,7 @@ def error(*messages, sep=" ", end="\n", flush=False, color=None, stack=False, ms
         full_stack=full_stack)
 
 
-def critical(*messages, sep=" ", end="\n", flush=False, color=None, stack=False, msg="args : ", full_stack=False):
+def critical(*messages, sep=" ", end="\n", flush=False, color="orange", stack=False, msg="args : ", full_stack=False):
     """
     Wrapper for log log_level=critical
     """

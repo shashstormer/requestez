@@ -66,17 +66,19 @@ RequestEZ provides some useful and colorful logging utilities. You can use them 
 
 ```python
 # it works similar to the logging module but with some extra features
-# Logging to a file not supported yet
+# Logging to a file is now supported
 # Color compatibility depends on the terminal
 # Works on windows cmd, powershell, and linux terminal (tested) 
 # others not tested
 import time
-from requestez.helpers import log, set_log_level, pbar
+from requestez.helpers import log, set_log_level, pbar, get_logger, critical
 set_log_level("debug")
 log("Hello World", color="green" ,log_level="debug") # logs hello world
 set_log_level("info") # sets log level to debug
+get_logger().enable_file_logging(json_path="test.json") # enables file logging to that file, each line in the file is a json object
 log("Hello World", color="green" ,log_level="info") # logs red hello world to console
 log("Hello World", color="red" ,log_level="debug") # logs nothing to console
+critical("This is a critical message") # logs red hello world to console with CRITICAL level
 # Refer to inline documentation for more options
 
 
