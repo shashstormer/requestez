@@ -1,8 +1,8 @@
-requests~=2.32.2
-m3u8~=3.6.0
-yarl~=1.9.2
-regex~=2023.10.3
-beautifulsoup4~=4.12.2
+requests~=2.32.3
+m3u8~=6.0.0
+yarl~=1.19.0
+regex~=2024.11.6
+beautifulsoup4~=4.13.3
 js2xml~=0.5.0
-xmltodict~=0.13.0
-pycryptodome~=3.19.0
+xmltodict~=0.14.2
+pycryptodome~=3.22.0

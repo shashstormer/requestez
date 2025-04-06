@@ -8,6 +8,7 @@ import datetime
 import logging
 import inspect
 import os
+import json
 
 
 class LOGGER:
@@ -46,6 +47,38 @@ class LOGGER:
         self.args_sep = "\n"
         self.arg_msg_arg_Sep = "\n"
         self.initialized = True
+        self._log_to_file_enabled = False
+        self._log_file_path = None
+        self._json_log_file_path = None
+
+    def _log_to_file(self, log_data: dict):
+        if not self._log_to_file_enabled or not self._log_file_path:
+            return
+        log_line = f"{log_data['time']} | {log_data['file']}:{log_data['line']} | {log_data['name']} | {log_data['level']} | {log_data['msg']} | {log_data['print_content']}\n"
+        if not log_line.endswith("\n"):
+            log_line += "\n"
+        with open(self._log_file_path, "a") as f:
+            f.write(log_line)
+
+    def _export_json_log(self, log_data: dict):
+        if not self._log_to_file_enabled or not self._json_log_file_path:
+            return
+        # json_log = {
+        #     "timestamp": log_data["time"],
+        #     "file": log_data["file"],
+        #     "line": log_data["line"],
+        #     "name": log_data["name"],
+        #     "level": log_data["level"],
+        #     "message": log_data["msg"],
+        #     "args": log_data.get("formatted_args", "").strip(),
+        # }
+        json_log = log_data
+        with open(self._json_log_file_path, "a") as jf:
+            jf.write(json.dumps(json_log) + "\n")
+
+    def append_log_to_files(self, log_data: dict):
+        self._log_to_file(log_data)
+        self._export_json_log(log_data)
 
     def log(self, level, *args, **kwargs):
         level_num, level = convert_log_level(level, True)
@@ -53,12 +86,18 @@ class LOGGER:
             fmt = self._format
             caller_filename, caller_lineno, caller_name = self._get_caller_location()
             args = self.formatted_args(args)
-            kwargs['formatted_args'] = args
-            kwargs['line'] = str(caller_lineno)
-            kwargs['file'] = caller_filename
-            kwargs['level'] = level
-            kwargs['name'] = caller_name
-            kwargs['time'] = datetime.datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
+            if not kwargs.get("formatted_args"):
+                kwargs['formatted_args'] = args
+            if not kwargs.get("line"):
+                kwargs['line'] = str(caller_lineno)
+            if not kwargs.get("file"):
+                kwargs['file'] = caller_filename
+            if not kwargs.get("level"):
+                kwargs['level'] = level
+            if not kwargs.get("name"):
+                kwargs['name'] = caller_name
+            if not kwargs.get("time"):
+                kwargs['time'] = datetime.datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
             if "color" in kwargs:
                 kwargs['color'] = self._get_color(kwargs['color'])
             else:
@@ -68,7 +107,40 @@ class LOGGER:
             else:
                 kwargs['reset'] = self._reset_color
             print_content = fmt % kwargs
-            print(print_content)
+            if not kwargs.get("only_to_file"):
+                print(print_content)
+            log_data = {
+                "file": caller_filename,
+                "line": caller_lineno,
+                "name": caller_name,
+                "level": level,
+                "time": kwargs["time"],
+                "msg": args,
+                "formatted_args": kwargs["formatted_args"],
+                "print_content": print_content,
+                "color": kwargs["color"],
+            }
+            self.append_log_to_files(log_data)
+
+    def enable_file_logging(self, enabled: bool = True, log_path=None, json_path=None):
+        self._log_to_file_enabled = enabled
+        if log_path is not None:
+            self._log_file_path = log_path
+            if not os.path.exists(log_path):
+                with open(log_path, "w") as f:
+                    f.write("")
+        if json_path is not None:
+            self._json_log_file_path = json_path
+            if not os.path.exists(json_path):
+                with open(json_path, "w") as f:
+                    f.write("")
+        if enabled:
+            print(f"Logging enabled. Logs will be saved to {log_path} and {json_path}")
+
+    def disable_file_logging(self):
+        self._log_to_file_enabled = False
+        self._log_file_path = None
+        self._json_log_file_path = None
 
     def set_level(self, level):
         self._level, self._level_name = convert_log_level(level, True)
@@ -130,7 +202,6 @@ class LOGGER:
     def stack(self, level, *args, **kwargs):
         level_num, level = convert_log_level(level, True)
         if level_num >= self._level:
-            fmt = self._format
             caller_filename, caller_lineno, caller_name = self._get_caller_location()
             args = self.formatted_args(args)
             stack = self._retrieve_formatted_stack()
@@ -138,19 +209,10 @@ class LOGGER:
             kwargs['formatted_args'] = args
             kwargs['line'] = str(caller_lineno)
             kwargs['file'] = caller_filename
-            kwargs['level'] = level
+            # kwargs['level'] = level
             kwargs['name'] = caller_name
             kwargs['time'] = datetime.datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
-            if "color" in kwargs:
-                kwargs['color'] = self._get_color(kwargs['color'])
-            else:
-                kwargs['color'] = self._color
-            if "reset" in kwargs:
-                kwargs['reset'] = self._get_color(kwargs['reset'])
-            else:
-                kwargs['reset'] = self._reset_color
-            print_content = fmt % kwargs
-            print(print_content)
+            self.log(level, *args, **kwargs)
 
     def _retrieve_formatted_stack(self):
         stack_formatted = "\n\nstack : \n"
@@ -266,7 +328,7 @@ def get_logger():
 def log(*messages, sep=" ", end="\n", flush=False, color=None, stack=False, log_level="info", msg="args : ",
         full_stack=False):
     """
-    This is a helper method which creates a LOGGER instance on file import andd provides a simple interface to log
+    This is a helper method which creates a LOGGER instance on file import and provides a simple interface to log
     messages
     you can use the get_logger() method to get the instance of the logger and use it directly
     :param messages: messages to be printed
@@ -294,8 +356,49 @@ def log(*messages, sep=" ", end="\n", flush=False, color=None, stack=False, log_
                 print(color_code, end="")
             else:
                 color_code = logger.get_color()
-            messages = [i if type(i) != str else i.replace("\r", "\r" + color_code) for i in list(messages).copy()]
+            messages = [i if isinstance(i, str) else i.replace("\r", "\r" + color_code) for i in list(messages).copy()]
+            logger.log(log_level, *messages, msg=msg, color=color, only_to_file=True)
             print(*messages, sep=sep, end="", flush=flush)
             if color and hasattr(Colors, color):
                 print(Colors.RESET, end="")
             print("", end=end)
+
+
+def info(*messages, sep=" ", end="\n", flush=False, color=None, stack=False, msg="args : ", full_stack=False):
+    """
+    Wrapper for log log_level=info
+    """
+    log(*messages, sep=sep, end=end, flush=flush, color=color, stack=stack, log_level="info", msg=msg,
+        full_stack=full_stack)
+
+
+def debug(*messages, sep=" ", end="\n", flush=False, color=None, stack=False, msg="args : ", full_stack=False):
+    """
+    Wrapper for log log_level=debug
+    """
+    log(*messages, sep=sep, end=end, flush=flush, color=color, stack=stack, log_level="debug", msg=msg,
+        full_stack=full_stack)
+
+
+def warning(*messages, sep=" ", end="\n", flush=False, color=None, stack=False, msg="args : ", full_stack=False):
+    """
+        Wrapper for log log_level=warning
+    """
+    log(*messages, sep=sep, end=end, flush=flush, color=color, stack=stack, log_level="warning", msg=msg,
+        full_stack=full_stack)
+
+
+def error(*messages, sep=" ", end="\n", flush=False, color=None, stack=False, msg="args : ", full_stack=False):
+    """
+        Wrapper for log log_level=error
+    """
+    log(*messages, sep=sep, end=end, flush=flush, color=color, stack=stack, log_level="error", msg=msg,
+        full_stack=full_stack)
+
+
+def critical(*messages, sep=" ", end="\n", flush=False, color=None, stack=False, msg="args : ", full_stack=False):
+    """
+    Wrapper for log log_level=critical
+    """
+    log(*messages, sep=sep, end=end, flush=flush, color=color, stack=stack, log_level="critical", msg=msg,
+        full_stack=full_stack)

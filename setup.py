@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name='requestez',
-    version='0.1.4',
+    version='0.1.6',
     author='shashstormer',
     description='A simpler interface for scraping with some basic parsing, aes encryption decryption and some logging utils.',
     long_description=long_description,
