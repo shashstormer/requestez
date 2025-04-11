@@ -288,6 +288,8 @@ def convert_log_level(level, ret_name=False):
     :param ret_name:
     :return:
     """
+    if isinstance(level, int):
+        return [level, "CUSTOM"]
     level = level.lower()
     if level == "i":
         level = "info"
@@ -356,7 +358,7 @@ def log(*messages, sep=" ", end="\n", flush=False, color=None, stack=False, log_
                 print(color_code, end="")
             else:
                 color_code = logger.get_color()
-            messages = [i if isinstance(i, str) else i.replace("\r", "\r" + color_code) for i in list(messages).copy()]
+            messages = [i if isinstance(i, str) else str(i).replace("\r", "\r" + color_code) for i in list(messages).copy()]
             logger.log(log_level, *messages, msg=msg, color=color, only_to_file=True)
             print(*messages, sep=sep, end="", flush=flush)
             if color and hasattr(Colors, color):
