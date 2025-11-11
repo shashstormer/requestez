@@ -92,10 +92,10 @@ class Session:
                 elif read_as == "bytes":
                     content = await response.read()
                 else:
-                    await response.release()
+                    response.release()
             except (aiohttp.ContentTypeError, asyncio.TimeoutError, Exception) as e:
                 print(f"Error reading response body from {url}: {e}")
-                await response.release()
+                response.release()
 
             # Update current URL if navigation was successful
             if 200 <= response.status < 300 and update_url:
@@ -213,7 +213,13 @@ class Session:
         Args:
             data (dict): A dictionary in the format provided by save_data().
         """
-        self.client.cookie_jar.clear()
+        jar = self.client.cookie_jar
+        if not isinstance(jar, http.cookiejar.CookieJar):
+            print(f"Warning: Cookie jar is not a standard http.cookiejar.CookieJar. Skipping cookie load.")
+            self._current_url = data.get("current_url")
+            return
+
+        jar.clear()
         self._current_url = data.get("current_url")
 
         now = int(time.time())
@@ -225,6 +231,6 @@ class Session:
 
             try:
                 cookie = self._create_cookie_from_dict(cookie_dict)
-                self.client.cookie_jar.set_cookie(cookie)
+                jar.set_cookie(cookie)
             except Exception as e:
                 print(f"Warning: Could not load cookie '{cookie_dict.get('name')}': {e}")
