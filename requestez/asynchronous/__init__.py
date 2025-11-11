@@ -1,4 +1,7 @@
 import asyncio
+import datetime
+from http.cookies import Morsel
+
 import aiohttp
 import time
 import http.cookiejar
@@ -158,28 +161,33 @@ class Session:
 
     def _create_cookie_from_dict(
             self, d: Dict[str, Any]
-    ) -> http.cookiejar.Cookie:
-        """Helper to create a Cookie object from a dictionary."""
-        expires = d.get("expires")
-        return http.cookiejar.Cookie(
-            version=0,
-            name=d["name"],
-            value=d["value"],
-            port=None,
-            port_specified=False,
-            domain=d.get("domain", ""),
-            domain_specified=bool(d.get("domain")),
-            domain_initial_dot=d.get("domain", "").startswith("."),
-            path=d.get("path", "/"),
-            path_specified=bool(d.get("path")),
-            secure=d.get("secure", False),
-            expires=expires,
-            discard=False,
-            comment=None,
-            comment_url=None,
-            rest={"HttpOnly": d.get("httponly")} if d.get("httponly") else {},
-            rfc2109=False,
-        )
+    ) -> Morsel:
+        """Helper to create a Morsel object from a dictionary."""
+        name = d.get("name")
+        value = d.get("value")
+
+        m = Morsel()
+        m.set(name, value, value)
+
+        if d.get("domain"):
+            m["domain"] = d.get("domain")
+        if d.get("path"):
+            m["path"] = d.get("path")
+
+        epoch_seconds = d.get("expires")
+        if epoch_seconds:
+            try:
+                dt = datetime.datetime.fromtimestamp(epoch_seconds, tz=datetime.timezone.utc)
+                m["expires"] = dt.strftime("%a, %d %b %Y %H:%M:%S GMT")
+            except (TypeError, ValueError, OSError):
+                pass
+
+        if d.get("secure"):
+            m["secure"] = True
+        if d.get("httponly"):
+            m["httponly"] = True
+
+        return m
 
     async def save_data(self) -> Dict[str, Any]:
         """
@@ -190,17 +198,18 @@ class Session:
         """
         cookies: List[Dict[str, Any]] = []
         for cookie in self.client.cookie_jar:
-            # Get HttpOnly flag from the 'rest' dict
-            httponly = cookie.rest.get("HttpOnly", cookie.rest.get("httponly"))
+            httponly = False
+            if hasattr(cookie, "rest"):
+                httponly = cookie.rest.get("HttpOnly", cookie.rest.get("httponly"))
 
             cookies.append(
                 {
                     "name": cookie.key,
                     "value": cookie.value,
-                    "domain": cookie.domain,
-                    "path": cookie.path,
-                    "expires": cookie.expires,
-                    "secure": cookie.secure,
+                    "domain": getattr(cookie, "domain", ""),
+                    "path": getattr(cookie, "path", "/"),
+                    "expires": getattr(cookie, "expires", None),
+                    "secure": getattr(cookie, "secure", False),
                     "httponly": bool(httponly),
                 }
             )
@@ -214,11 +223,6 @@ class Session:
             data (dict): A dictionary in the format provided by save_data().
         """
         jar = self.client.cookie_jar
-        if not isinstance(jar, http.cookiejar.CookieJar):
-            print(f"Warning: Cookie jar is not a standard http.cookiejar.CookieJar. Skipping cookie load.")
-            self._current_url = data.get("current_url")
-            return
-
         jar.clear()
         self._current_url = data.get("current_url")
 
@@ -229,8 +233,8 @@ class Session:
             if expires is not None and expires < now:
                 continue  # Skip expired cookie
 
-            try:
-                cookie = self._create_cookie_from_dict(cookie_dict)
-                jar.set_cookie(cookie)
-            except Exception as e:
-                print(f"Warning: Could not load cookie '{cookie_dict.get('name')}': {e}")
+            morsel = self._create_cookie_from_dict(cookie_dict)
+            if morsel.key:
+                jar.update_cookies({morsel.key: morsel})
+            else:
+                print('Failed to load cookie due to missing name')
