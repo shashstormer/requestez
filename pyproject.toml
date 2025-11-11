@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "requestez"
+version = "0.1.8"
+authors = [
+    { name = "shashstormer" },
+]
+description = "A simpler interface for scraping with some basic parsing, aes encryption decryption and some logging utils."
+readme = "README.md"
+license = { text = "MIT License" }
+requires-python = ">=3.9"
+
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.9",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Internet :: WWW/HTTP",
+]
+
+dependencies = [
+    "requests",
+    "m3u8",
+    "pycryptodome",
+    "yarl",
+    "regex",
+    "beautifulsoup4",
+    "dbdictionary",
+    "aiohttp",
+]
+
+[project.optional-dependencies]
+optional = [
+    "moviepy[optional]",
+    "js2xml",
+    "xmltodict",
+]
+
+[project.urls]
+GitHub = "https://github.com/shashstormer/requestez"
+
+[tool.setuptools]
+[tool.setuptools.packages.find]
+where = ["."]
