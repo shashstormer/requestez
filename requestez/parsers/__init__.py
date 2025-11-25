@@ -4,7 +4,7 @@ from html import unescape, escape
 import re
 import m3u8 as _m3u8
 import json
-import regex as regex_orignal
+import regex as regex_original
 
 
 def load(string, escaped=True, error_1=True, iterate=False):
@@ -81,7 +81,7 @@ def xml(string):
 
 
 def reg_compile(pattern):
-    return regex_orignal.compile(pattern)
+    return regex_original.compile(pattern)
 
 
 def regex(string, pattern):
