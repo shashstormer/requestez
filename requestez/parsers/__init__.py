@@ -5,6 +5,7 @@ import re
 import m3u8 as _m3u8
 import json
 import regex as regex_original
+from typing import Literal
 
 
 def load(string, escaped=True, error_1=True, iterate=False):
@@ -107,8 +108,36 @@ def regex(string, pattern):
         .replace(" : ", ":").replace(" :", ":").replace(": ", ":")
     string = re.sub(" *: *", ":", string)
     a_matches = re.compile(pattern, re.IGNORECASE).findall(string)
+    a_matches = [a for a in a_matches if a]
     return a_matches
 
+def get_val_js_var(var_name, content, val_type: Literal["str", "int", "float", "bool"] = "str", mode: Literal["dict", "var"]="dict"):
+    """
+    Finds value of variable from js style dictionary/var in HTML
+    """
+    pattern = ""
+    if mode == "dict":
+        if val_type == "str":
+            pattern = rf"(?:{var_name}\s*:\s*(?:\"|')(.*?)(?:\"|')),"
+        elif val_type == "int":
+            pattern = rf"(?:{var_name}\s*:\s*(\d+)),"
+        elif val_type == "float":
+            pattern = rf"(?:{var_name}\s*:\s*(\d+\.\d+)),"""
+    elif mode == "var":
+        pattern = rf"var\s+{var_name}\s*=\s*(.*?);?"
+    match = regex(content, pattern)
+    if match:
+        match = match[0]
+        val = match
+        val = val.strip().strip('"').strip("'")
+        if val_type == "int":
+            return int(val)
+        elif val_type == "float":
+            return float(val)
+        elif val_type == "bool":
+            return val.lower() in ["true", "1", "yes"]
+        return val
+    return None
 
 def js(string):
     import js2xml

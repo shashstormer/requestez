@@ -4,19 +4,18 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "requestez"
-version = "0.1.10"
+version = "0.1.11"
 authors = [
     { name = "shashstormer" },
 ]
 description = "A simpler interface for scraping with some basic parsing, aes encryption decryption and some logging utils."
 readme = "README.md"
-license = { text = "MIT License" }
+license = "MIT"
 requires-python = ">=3.9"
 
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3.9",
     "Topic :: Software Development :: Libraries",
     "Topic :: Internet :: WWW/HTTP",
