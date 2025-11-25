@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "requestez"
-version = "0.1.9"
+version = "0.1.10"
 authors = [
     { name = "shashstormer" },
 ]
@@ -35,7 +35,7 @@ dependencies = [
 
 [project.optional-dependencies]
 optional = [
-    "moviepy[optional]",
+    "moviepy",
     "js2xml",
     "xmltodict",
 ]
