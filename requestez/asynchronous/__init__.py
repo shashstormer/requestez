@@ -4,7 +4,6 @@ from http.cookies import Morsel
 
 import aiohttp
 import time
-import http.cookiejar
 from typing import Optional, Any, Dict, List, Tuple
 
 
@@ -23,6 +22,18 @@ class Session:
         """Initializes the Session."""
         self._client: Optional[aiohttp.ClientSession] = None
         self._current_url: Optional[str] = None
+        self.default_headers: Dict[str, str] = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)'
+                          ' Chrome/114.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,'
+                      'image/webp,image/apng,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Connection': 'keep-alive',
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache',
+            "SEC-CH-UA-MOBILE": "?0",
+            "SEC-CH-UA-PLATFORM": "Linux",
+        }
 
     async def __aenter__(self):
         """Asynchronously initializes the ClientSession."""
@@ -75,7 +86,10 @@ class Session:
             tuple: (status_code, headers, body)
         """
         # Prepare headers, adding Referer if not manually overridden
-        headers = kwargs.get("headers", {}).copy()
+        headers = {}
+        if self.default_headers:
+            headers = self.default_headers.copy()
+        headers.update(kwargs.get("headers", {}).copy())
         if (
                 "Referer" not in headers
                 and not suppress_referer
