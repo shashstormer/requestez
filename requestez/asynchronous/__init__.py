@@ -4,8 +4,9 @@ from http.cookies import Morsel
 
 import aiohttp
 import time
-from typing import Optional, Any, Dict, List, Tuple
+from typing import Optional, Any, Dict, List, Tuple, Literal
 
+READ_AS_OPTIONS = Literal['json', 'text' , 'bytes']
 
 class Session:
     """
@@ -64,7 +65,7 @@ class Session:
             self,
             method: str,
             url: str,
-            read_as: Optional[str] = "json",
+            read_as: READ_AS_OPTIONS = "json",
             *,
             suppress_referer: bool = False,
             update_url: bool = False,
@@ -120,42 +121,42 @@ class Session:
 
             return response.status, response.headers, content
 
-    async def get(self, url: str, read_as: Optional[str] = "json", **kwargs):
+    async def get(self, url: str, read_as: READ_AS_OPTIONS = "json", **kwargs):
         """
         Performs an async HTTP GET request.
         Sends Referer, does NOT update current URL.
         """
         return await self._request("GET", url, read_as=read_as, **kwargs)
 
-    async def post(self, url: str, read_as: Optional[str] = "json", **kwargs):
+    async def post(self, url: str, read_as: READ_AS_OPTIONS = "json", **kwargs):
         """
         Performs an async HTTP POST request.
         Sends Referer, does NOT update current URL.
         """
         return await self._request("POST", url, read_as=read_as, **kwargs)
 
-    async def put(self, url: str, read_as: Optional[str] = "json", **kwargs):
+    async def put(self, url: str, read_as: READ_AS_OPTIONS = "json", **kwargs):
         """
         Performs an async HTTP PUT request.
         Sends Referer, does NOT update current URL.
         """
         return await self._request("PUT", url, read_as=read_as, **kwargs)
 
-    async def delete(self, url: str, read_as: Optional[str] = "json", **kwargs):
+    async def delete(self, url: str, read_as: READ_AS_OPTIONS = "json", **kwargs):
         """
         Performs an async HTTP DELETE request.
         Sends Referer, does NOT update current URL.
         """
         return await self._request("DELETE", url, read_as=read_as, **kwargs)
 
-    async def patch(self, url: str, read_as: Optional[str] = "json", **kwargs):
+    async def patch(self, url: str, read_as: READ_AS_OPTIONS = "json", **kwargs):
         """
         Performs an async HTTP PATCH request.
         Sends Referer, does NOT update current URL.
         """
         return await self._request("PATCH", url, read_as=read_as, **kwargs)
 
-    async def navigate(self, url: str, read_as: Optional[str] = "json", **kwargs):
+    async def navigate(self, url: str, read_as: READ_AS_OPTIONS = "json", **kwargs):
         """
         Simulates navigating to a new page (like clicking a link).
         Sends Referer, DOES update current URL on success.
@@ -164,7 +165,7 @@ class Session:
             "GET", url, read_as=read_as, update_url=True, **kwargs
         )
 
-    async def open(self, url: str, read_as: Optional[str] = "json", **kwargs):
+    async def open(self, url: str, read_as: READ_AS_OPTIONS = "json", **kwargs):
         """
         Simulates opening a URL directly (like in an address bar).
         Does NOT send Referer, DOES update current URL on success.
