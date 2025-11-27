@@ -111,7 +111,7 @@ def regex(string, pattern):
     a_matches = [a for a in a_matches if a]
     return a_matches
 
-def get_val_js_var(var_name, content, val_type: Literal["str", "int", "float", "bool"] = "str", mode: Literal["dict", "var"]="dict"):
+def get_val_js_var(var_name, content, val_type: Literal["str", "int", "float", "bool"] = "str", mode: Literal["dict", "var"]="dict", minimal=True, require_end_semi=False):
     """
     Finds value of variable from js style dictionary/var in HTML
     """
@@ -124,7 +124,12 @@ def get_val_js_var(var_name, content, val_type: Literal["str", "int", "float", "
         elif val_type == "float":
             pattern = rf"(?:{var_name}\s*:\s*(\d+\.\d+)),"""
     elif mode == "var":
-        pattern = rf"var\s+{var_name}\s*=\s*(.*?);?"
+        pattern = rf"{var_name}\s*=\s*(.*);"
+        if minimal:
+            pattern = rf"{var_name}\s*=\s*(.*?);"
+        if not require_end_semi:
+            pattern += "?"
+    print(pattern)
     match = regex(content, pattern)
     if match:
         match = match[0]
