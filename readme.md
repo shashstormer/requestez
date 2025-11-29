@@ -1,6 +1,6 @@
 # RequestEZ
 
-RequestEZ is a Python library that simplifies web scraping, provides basic parsing utilities, AES encryption/decryption, and some useful logging utilities.
+RequestEZ is a Python library designed to simplify web scraping, provide robust parsing utilities, offer easy-to-use AES encryption/decryption, and feature a powerful, flexible logging system.
 
 ## Installation
 
@@ -9,93 +9,134 @@ You can install RequestEZ using `pip`. Make sure you have Python 3.9 or later in
 ```bash
 pip install requestez
 ```
-# Usage
-### 1. Basic Web Scraping:
-RequestEZ provides a simple interface for making HTTP requests. You can create a session and use it to fetch web pages. 
+
+## Usage
+
+### 1. Web Scraping with `Session`
+
+RequestEZ provides a `Session` class that wraps `requests.Session` with additional features like automatic header management, anti-bot sleeping, and m3u8 downloading.
+
 ```python
 from requestez import Session
-session = Session()
-response: str = session.get("https://example.com")  # refer to inline documentation for more options
+
+# Initialize session (human_browsing=True adds random delays to mimic human behavior)
+session = Session(human_browsing=True)
+
+# Basic GET request
+response = session.get("https://example.com")
 print(response)
+
+# POST request
+session.post("https://example.com/api", body={"key": "value"})
+
+# Download file
+session.download("https://example.com/file.zip", "file.zip")
+
+# Download M3U8 (HLS) stream
+# This downloads segments and optionally joins them (requires moviepy)
+session.download_m3u8_as_mp4("https://example.com/video.m3u8", "video.mp4")
 ```
-### 2. AES Encryption/Decryption:
-You can use RequestEZ to perform AES encryption and decryption of data.
+
+### 2. Logging Utilities
+
+RequestEZ features a powerful logging system that integrates with Python's standard `logging` module while providing a simple, colorful API.
+
+```python
+from requestez.helpers import log, info, debug, warning, error, critical, set_log_level, get_logger
+
+# Set log level (default is INFO)
+set_log_level("debug")
+
+# Basic logging (prints to console with color)
+info("This is an info message")
+debug("This is a debug message")
+error("Something went wrong!", color="red")
+
+# The 'log' helper is versatile:
+# 1. Like print(): Raw output, supports end, flush, color
+log("Loading...", end="", flush=True, color="yellow")
+log("Done!", color="green")
+
+# 2. Like logger: structured output with stack trace info
+log("System status normal", stack=True) 
+
+# File Logging
+# Enable logging to file (text and/or JSON)
+get_logger().enable_file_logging(log_path="app.log", json_path="app.json")
+
+info("This goes to console AND file")
+log("This goes to file ONLY (raw print to console)", stack=False)
+
+# Disable file logging
+get_logger().disable_file_logging()
+```
+
+**Log Levels:**
+1.  CRITICAL (c)
+2.  ERROR (e)
+3.  WARNING (w)
+4.  INFO (i)
+5.  DEBUG (d)
+
+### 3. Progress Bar
+
+A clean, customizable progress bar for tracking operations.
+
+```python
+import time
+from requestez.helpers import pbar
+
+total_items = 50
+# Initialize
+pb = pbar(total_items, prefix='Processing:', suffix='Complete', length=30, color="cyan")
+
+for i in range(total_items):
+    time.sleep(0.1)
+    # Update progress
+    pb.update() 
+    # Or update with specific value: pb.update(i)
+    # Or increment: pb.update(plus=1)
+```
+
+### 4. Parsing Utilities
+
+Utilities to parse HTML, JSON, XML, and more.
+
+```python
+from requestez.parsers import html, load, stringify, seconds_to_text, merge
+
+# HTML Parsing (returns BeautifulSoup object)
+soup = html("<html><body><h1>Hi</h1></body></html>")
+
+# JSON Loading (handles escaped strings and nested JSON strings)
+data = load('{"key": "value"}')
+
+# Merge Data Structures
+list1 = [1, 2]
+list2 = [3, 4]
+merged = merge(list1, list2) # [1, 2, 3, 4]
+
+# Time Formatting
+print(seconds_to_text(3665)) # 01:01:05
+```
+
+### 5. AES Encryption/Decryption
+
+Simple wrapper for AES encryption.
 
 ```python
 from requestez.encryption import aes_enc, aes_dec
 
-key: bytes = b"your_32_byte_secret_key"
-iv: bytes = b"your_16_byte_initialization_vector"
-data: str = "your_data_to_encrypt"
+key = b"your_32_byte_secret_key_12345678"
+iv = b"your_16_byte_iv_"
+data = "Secret Message"
 
-encrypted_data: str = aes_enc(key, iv, data)
-decrypted_data: str = aes_dec(key, iv, encrypted_data)
-
-print("Encrypted:", encrypted_data)
-print("Decrypted:", decrypted_data)
-
-# you need to do from requestez.encryption.unpack import PACKER to find and decrypt p.a.c.k.e.r. encrypted data
-# read code to find out more
+encrypted = aes_enc(key, iv, data)
+decrypted = aes_dec(key, iv, encrypted)
 ```
-### 3. Parsing Utilities:
-RequestEZ provides some basic parsing utilities. You can use them to parse HTML, JSON, and XML data.
 
-```python
-from requestez.parsers import html, load
-html_data = "<html><body><h1>Hello World</h1></body></html>"
-json_data = '{"name": "John Doe", "age": 30}'
+## Advanced Features
 
-# Parse HTML data
-parsed_html = html(html_data) # returns a BeautifulSoup object
-
-# Parse JSON data
-parsed_json = load(json_data) # returns a dict if valid json otherwise returns the string itsef
-```
- There are other parsing utilities available as well. Please read the inline documentation for those.
- some of them are 
- - `m3u8_master` for parsing a M3U8 master playlist
- - `m3u8` for parsing M3U8 data > returns `m3u8.parse(playlist)`
- - `reg_replace` basically `re.sub` just don't have to import re
- - `secondsToRead` for converting seconds to human-readable format like `x day(s) x hour(s)...`
- - `secondsToTime` for converting seconds to `(DD):HH:MM:SS` format
- - `stringify` for converting a dict to a string with optional escaping
- - `load` for loading JSON data which can handle escaped json but is iterative to handle escaped json
-
-### 4. Logging Utilities:
-RequestEZ provides some useful and colorful logging utilities. You can use them to log data to a file or to the console.
-
-```python
-# it works similar to the logging module but with some extra features
-# Logging to a file is now supported
-# Color compatibility depends on the terminal
-# Works on windows cmd, powershell, and linux terminal (tested) 
-# others not tested
-import time
-from requestez.helpers import log, set_log_level, pbar, get_logger, critical
-set_log_level("debug")
-log("Hello World", color="green" ,log_level="debug") # logs hello world
-set_log_level("info") # sets log level to debug
-get_logger().enable_file_logging(json_path="test.json") # enables file logging to that file, each line in the file is a json object
-log("Hello World", color="green" ,log_level="info") # logs red hello world to console
-log("Hello World", color="red" ,log_level="debug") # logs nothing to console
-critical("This is a critical message") # logs red hello world to console with CRITICAL level
-# Refer to inline documentation for more options
-
-
-progress_printer = pbar(total=10, prefix='Progress:', suffix='', length=35, color="green", unit="seconds")
-for i in range(11):
-    time.sleep(1)  # Simulate some work
-    progress_printer.update(i)
-    # it is equivalent to 
-    # progress_printer.update(plus=1) -> this is done by default in the tqdm module
-# Refer to inline documentation for more options
-```
-#### the order of level priority is as follows:
- 
-- priority level (alias)
-1. CRITICAL (c)
-2. ERROR (e)
-3. WARNING (w)
-4. INFO (i)
-5. DEBUG (d)
-
+-   **M3U8 Parsing**: `requestez.parsers.m3u8` and `m3u8_master` for handling HLS playlists.
+-   **Regex Helpers**: `requestez.parsers.regex` for quick extraction.
+-   **JavaScript Extraction**: `requestez.parsers.get_val_js_var` to extract variables from inline JS in HTML.
