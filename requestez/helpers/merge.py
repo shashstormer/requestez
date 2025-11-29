@@ -1,53 +1,59 @@
-from typing import List, Dict, Iterable, Tuple, Set
+from typing import List, Dict, Tuple, Set, Union, Any
 
-
-def merge(*args: List or Dict or str or Tuple or Set) -> List or Dict or str or Tuple or Set:
+def merge(*args: Any) -> Union[List, Dict, str, Tuple, Set]:
     """
-    merges lists, tuples, dictionaries, strings, lists and tuples
-
-    '
-
-    '
-
-    the type of the returned object is the same as the first element passed as arg
-
-    '
-
-    '
-
-    the dictionary returned has the value of the latter object in case of common keys
-
-    i.e. the value in the latter arg is prioritised
-    :param args:
-    :return: type of first argument passed or an error message
+    Merges lists, tuples, dictionaries, strings, and sets.
+    The type of the returned object is determined by the first argument.
+    
+    - Lists/Tuples: Concatenated.
+    - Dictionaries: Merged (later arguments override earlier ones).
+    - Strings: Joined with a space.
+    - Sets: Union.
+    
+    :param args: Objects to merge.
+    :return: Merged object.
+    :raises TypeError: If arguments are of incompatible types.
     """
-    if args:
-        obj = args[0]
-    else:
+    if not args:
         return args
-    merged: str or dict or tuple or list or set = "" if type(obj) == str else {} if type(obj) == dict else [] if type(
-        obj) == list else tuple() if type(obj) == tuple else {} if type(obj) == set else "Unknown"
+
+    obj = args[0]
+    obj_type = type(obj)
+    
+    # Validate types
     for arg in args:
-        if type(arg) != type(merged):
-            if type(arg) == tuple and type(merged) == list:
-                pass
-            elif type(merged) == tuple and type(arg) == list:
-                pass
-            else:
-                return "Merge not supported between some or all args"
-    if obj == "Unknown":
-        return "Unsupported merge type"
-    if type(merged) == str:
-        merged = " ".join(args)
-    elif type(merged) == list:
+        if not isinstance(arg, (obj_type, list, tuple)) and not (isinstance(obj, (list, tuple)) and isinstance(arg, (list, tuple))):
+             # Allow mixing list and tuple if target is list/tuple?
+             # The original code allowed mixing list and tuple somewhat.
+             if not isinstance(arg, obj_type):
+                 raise TypeError(f"Cannot merge {obj_type} with {type(arg)}")
+
+    if isinstance(obj, str):
+        return " ".join(args)
+    
+    elif isinstance(obj, list):
+        merged_list = []
         for arg in args:
-            merged.extend(arg)
-    elif type(merged) == tuple:
-        merge_d = []
+            merged_list.extend(list(arg))
+        return merged_list
+        
+    elif isinstance(obj, tuple):
+        merged_list = []
         for arg in args:
-            merge_d.extend(list(arg))
-        merged = tuple(merge_d)
-    elif type(merged) == dict:
-        for dictionary in args:
-            merged.update(dictionary)
-    return merged
+            merged_list.extend(list(arg))
+        return tuple(merged_list)
+        
+    elif isinstance(obj, dict):
+        merged_dict = {}
+        for arg in args:
+            merged_dict.update(arg)
+        return merged_dict
+        
+    elif isinstance(obj, set):
+        merged_set = set()
+        for arg in args:
+            merged_set.update(arg)
+        return merged_set
+        
+    else:
+        raise TypeError(f"Unsupported type for merge: {obj_type}")

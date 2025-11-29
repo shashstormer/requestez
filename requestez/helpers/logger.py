@@ -4,233 +4,13 @@ set_log_level(log_level) to set log level
 and the log() method to log messages
 refer to the colors class to know the colors available
 """
-import datetime
 import logging
 import inspect
 import os
 import json
-
-
-class LOGGER:
-    _instance = None
-
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
-
-    def __init__(self):
-        if hasattr(self, 'initialized'):
-            return
-        self._format = "%(color)s%(file)s:%(line)s | %(name)s | \033[4m%(level)s%(reset)s%(color)s | %(time)s |" \
-                       "|-> %(msg)s%(formatted_args)s%(reset)s"
-        self._reset_color = Colors.RESET
-        self._color = Colors.RESET
-        self._level, self._level_name = convert_log_level("i", True)
-        self.place_holders = {
-            "color": "%(color)s",
-            "reset": "%(reset_color)s",
-            "msg": "%(msg)s",
-            "args": "%(args)s",
-            "file": "%(file)s",
-            "line": "%(line)s",
-            "time": "%(time)s",
-            "level": "%(level)s",
-            "arg_number": "%(arg_number)s",
-            'arg_message': "%(arg_message)s",
-            "formatted_args": "%(formatted_args)s",
-            "name": "%(name)s",
-        }
-        self._args_message = "args : "
-        self.args_msg_sep = "\n"
-        self._args_format = f"{self.place_holders['arg_number']}. {self.place_holders['arg_message']}"
-        self.args_sep = "\n"
-        self.arg_msg_arg_Sep = "\n"
-        self.initialized = True
-        self._log_to_file_enabled = False
-        self._log_file_path = None
-        self._json_log_file_path = None
-
-    def _log_to_file(self, log_data: dict):
-        if not self._log_to_file_enabled or not self._log_file_path:
-            return
-        log_line = f"{log_data['time']} | {log_data['file']}:{log_data['line']} | {log_data['name']} | {log_data['level']} | {log_data['msg']} | {log_data['print_content']}\n"
-        if not log_line.endswith("\n"):
-            log_line += "\n"
-        with open(self._log_file_path, "a") as f:
-            f.write(log_line)
-
-    def _export_json_log(self, log_data: dict):
-        if not self._log_to_file_enabled or not self._json_log_file_path:
-            return
-        # json_log = {
-        #     "timestamp": log_data["time"],
-        #     "file": log_data["file"],
-        #     "line": log_data["line"],
-        #     "name": log_data["name"],
-        #     "level": log_data["level"],
-        #     "message": log_data["msg"],
-        #     "args": log_data.get("formatted_args", "").strip(),
-        # }
-        json_log = log_data
-        with open(self._json_log_file_path, "a") as jf:
-            jf.write(json.dumps(json_log) + "\n")
-
-    def append_log_to_files(self, log_data: dict):
-        self._log_to_file(log_data)
-        self._export_json_log(log_data)
-
-    def log(self, level, *args, **kwargs):
-        level_num, level = convert_log_level(level, True)
-        if level_num >= self._level:
-            fmt = self._format
-            caller_filename, caller_lineno, caller_name = self._get_caller_location()
-            args = self.formatted_args(args)
-            if not kwargs.get("formatted_args"):
-                kwargs['formatted_args'] = args
-            if not kwargs.get("line"):
-                kwargs['line'] = str(caller_lineno)
-            if not kwargs.get("file"):
-                kwargs['file'] = caller_filename
-            if not kwargs.get("level"):
-                kwargs['level'] = level
-            if not kwargs.get("name"):
-                kwargs['name'] = caller_name
-            if not kwargs.get("time"):
-                kwargs['time'] = datetime.datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
-            if "color" in kwargs:
-                kwargs['color'] = self._get_color(kwargs['color'])
-            else:
-                kwargs['color'] = self._color
-            if "reset" in kwargs:
-                kwargs['reset'] = self._get_color(kwargs['reset'])
-            else:
-                kwargs['reset'] = self._reset_color
-            print_content = fmt % kwargs
-            if not kwargs.get("only_to_file"):
-                print(print_content)
-            log_data = {
-                "file": caller_filename,
-                "line": caller_lineno,
-                "name": caller_name,
-                "level": level,
-                "time": kwargs["time"],
-                "msg": args,
-                "formatted_args": kwargs["formatted_args"],
-                "print_content": print_content,
-                "color": kwargs["color"],
-            }
-            self.append_log_to_files(log_data)
-
-    def enable_file_logging(self, enabled: bool = True, log_path=None, json_path=None):
-        self._log_to_file_enabled = enabled
-        if log_path is not None:
-            self._log_file_path = log_path
-            if not os.path.exists(log_path):
-                with open(log_path, "w") as f:
-                    f.write("")
-        if json_path is not None:
-            self._json_log_file_path = json_path
-            if not os.path.exists(json_path):
-                with open(json_path, "w") as f:
-                    f.write("")
-        if enabled:
-            print(f"Logging enabled. Logs will be saved to {log_path} and {json_path}")
-
-    def disable_file_logging(self):
-        self._log_to_file_enabled = False
-        self._log_file_path = None
-        self._json_log_file_path = None
-
-    def set_level(self, level):
-        self._level, self._level_name = convert_log_level(level, True)
-
-    @staticmethod
-    def _get_color(color):
-        if color:
-            color = color.upper()
-        if color and hasattr(Colors, color):
-            color_code = getattr(Colors, color)
-        else:
-            color_code = Colors.RESET
-        return color_code
-
-    def _get_caller_location(self):
-        stack = inspect.stack()
-        cur_stack = stack[3]
-        return self._get_location(cur_stack)
-
-    @staticmethod
-    def _get_location(cur_stack):
-        name = cur_stack.function
-        line = cur_stack.lineno
-        file = cur_stack.filename
-        try:
-            rel_path = os.path.relpath(file, start=os.getcwd())
-        except ValueError:
-            rel_path = file
-        if name == "<module>":
-            name = file.split("\\")[-1]
-        try:
-            f_name = cur_stack[0].f_locals["self"].__class__.__name__
-            name = f"{f_name}.{name}"
-        except KeyError:
-            pass
-        return rel_path, line, name
-
-    def set_format(self, log_format):
-        self._format = self.place_holders['color'] + log_format + self.place_holders['reset']
-
-    def set_color(self, color, reset_color="white"):
-        self._color = self._get_color(color)
-        self._reset_color = self._get_color(reset_color)
-
-    def formatted_args(self, args):
-        formatted = ""
-        for i, arg in enumerate(args, start=1):
-            fmt = self._args_format
-            formatted += (" " * len(self._args_message)) + fmt % {
-                'arg_number': i,
-                'arg_message': arg,
-            }
-            formatted += self.args_sep
-        formatted = formatted.strip(self.args_sep)
-        if formatted:
-            formatted = self.args_msg_sep + self._args_message + self.arg_msg_arg_Sep + formatted
-        return formatted
-
-    def stack(self, level, *args, **kwargs):
-        level_num, level = convert_log_level(level, True)
-        if level_num >= self._level:
-            caller_filename, caller_lineno, caller_name = self._get_caller_location()
-            args = self.formatted_args(args)
-            stack = self._retrieve_formatted_stack()
-            args = stack + args
-            kwargs['formatted_args'] = args
-            kwargs['line'] = str(caller_lineno)
-            kwargs['file'] = caller_filename
-            # kwargs['level'] = level
-            kwargs['name'] = caller_name
-            kwargs['time'] = datetime.datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
-            self.log(level, *args, **kwargs)
-
-    def _retrieve_formatted_stack(self):
-        stack_formatted = "\n\nstack : \n"
-        stacks = inspect.stack()
-        stacks = stacks[3:]
-        last_len = 0
-        for stack in stacks:
-            file, line, name = self._get_location(stack)
-            stack_formatted += (" " * (last_len * 4)) + f"{file}:{line} | {name}\n"
-            last_len += 1
-        return stack_formatted
-
-    def level(self):
-        return self._level
-
-    def get_color(self):
-        return self._color
-
+import datetime
+import sys
+from typing import Optional
 
 class Colors:
     # Text colors
@@ -280,127 +60,226 @@ class Colors:
     ITALIC = '\033[3m'
     STRIKETHROUGH = '\033[9m'
 
+    @staticmethod
+    def get_code(color_name: str) -> str:
+        if not color_name:
+            return Colors.RESET
+        color_name = color_name.upper()
+        if hasattr(Colors, color_name):
+            return getattr(Colors, color_name)
+        return Colors.RESET
+    
+    @staticmethod
+    def get_color(color_name: str) -> str:
+         return Colors.get_code(color_name)
 
-def convert_log_level(level, ret_name=False):
-    """
-    just when you are lazy
-    :param level:
-    :param ret_name:
-    :return:
-    """
-    if isinstance(level, int):
-        return [level, "CUSTOM"]
-    level = level.lower()
-    if level == "i":
-        level = "info"
-    elif level == "w":
-        level = "warning"
-    elif level == "c":
-        level = "critical"
-    elif level == "e":
-        level = "error"
-    elif level == "d":
-        level = "debug"
-    level = level.upper()
-    if ret_name:
-        return [getattr(logging, level, logging.INFO), level]
-    return getattr(logging, level, logging.INFO)
+class ConsoleFilter(logging.Filter):
+    def filter(self, record):
+        return not getattr(record, 'skip_console', False)
 
+class CustomFormatter(logging.Formatter):
+    def __init__(self, fmt=None, datefmt=None, style='%'):
+        super().__init__(fmt, datefmt, style)
+        self.default_format = "%(color)s%(file)s:%(line)s | %(name)s | \033[4m%(levelname)s%(reset)s%(color)s | %(asctime)s ||-> %(msg)s%(reset)s"
+
+    def format(self, record):
+        # Set default color if not present
+        if not hasattr(record, 'color'):
+            record.color = Colors.RESET
+        if not hasattr(record, 'reset'):
+            record.reset = Colors.RESET
+        
+        # Populate custom fields
+        record.file = os.path.relpath(record.pathname) if os.path.exists(record.pathname) else record.pathname
+        record.line = record.lineno
+        
+        # Format the message
+        log_fmt = self.default_format
+        formatter = logging.Formatter(log_fmt, datefmt="%Y-%m-%d %I:%M:%S %p")
+        return formatter.format(record)
+
+class JsonFormatter(logging.Formatter):
+    def format(self, record):
+        log_data = {
+            "timestamp": self.formatTime(record, "%Y-%m-%d %I:%M:%S %p"),
+            "file": os.path.relpath(record.pathname) if os.path.exists(record.pathname) else record.pathname,
+            "line": record.lineno,
+            "name": record.name,
+            "level": record.levelname,
+            "message": record.getMessage(),
+        }
+        return json.dumps(log_data)
+
+class LOGGER:
+    _instance = None
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
+    def __init__(self):
+        if hasattr(self, 'initialized'):
+            return
+        self.logger = logging.getLogger("requestez")
+        self.logger.setLevel(logging.INFO)
+        self.logger.propagate = False # Prevent double logging if root logger is configured
+        
+        # Console Handler
+        self.console_handler = logging.StreamHandler()
+        self.console_handler.setFormatter(CustomFormatter())
+        self.console_handler.addFilter(ConsoleFilter())
+        self.logger.addHandler(self.console_handler)
+        
+        self.file_handler = None
+        self.json_file_handler = None
+        self.initialized = True
+
+    def set_level(self, level):
+        level_code = self._convert_log_level(level)
+        self.logger.setLevel(level_code)
+        # Also set handler levels to ensure they capture everything
+        for handler in self.logger.handlers:
+            handler.setLevel(level_code)
+
+    def enable_file_logging(self, enabled: bool = True, log_path: Optional[str] = None, json_path: Optional[str] = None):
+        if not enabled:
+            self.disable_file_logging()
+            return
+
+        if log_path:
+            if self.file_handler:
+                self.logger.removeHandler(self.file_handler)
+            self.file_handler = logging.FileHandler(log_path)
+            self.file_handler.setFormatter(CustomFormatter()) # Use same format for text file
+            self.logger.addHandler(self.file_handler)
+            
+        if json_path:
+            if self.json_file_handler:
+                self.logger.removeHandler(self.json_file_handler)
+            self.json_file_handler = logging.FileHandler(json_path)
+            self.json_file_handler.setFormatter(JsonFormatter())
+            self.logger.addHandler(self.json_file_handler)
+
+        print(f"Logging enabled. Logs will be saved to {log_path} and {json_path}")
+
+    def disable_file_logging(self):
+        if self.file_handler:
+            self.logger.removeHandler(self.file_handler)
+            self.file_handler = None
+        if self.json_file_handler:
+            self.logger.removeHandler(self.json_file_handler)
+            self.json_file_handler = None
+
+    def _convert_log_level(self, level):
+        if isinstance(level, int):
+            return level
+        level = level.lower()
+        mapping = {
+            "i": logging.INFO, "info": logging.INFO,
+            "w": logging.WARNING, "warning": logging.WARNING,
+            "c": logging.CRITICAL, "critical": logging.CRITICAL,
+            "e": logging.ERROR, "error": logging.ERROR,
+            "d": logging.DEBUG, "debug": logging.DEBUG
+        }
+        return mapping.get(level, logging.INFO)
+
+    def log(self, level, *messages, **kwargs):
+        level_code = self._convert_log_level(level)
+        
+        # Handle color
+        color = kwargs.get('color')
+        color_code = Colors.get_color(color)
+        
+        # Format messages
+        sep = kwargs.get('sep', ' ')
+        msg = sep.join(map(str, messages))
+        
+        # Add extra context for the formatter
+        extra = {'color': color_code}
+        
+        if kwargs.get('full_stack'):
+             import traceback
+             msg += "\n" + "".join(traceback.format_stack()[:-1])
+
+        # Determine stack level
+        stack_depth = kwargs.get('stack_depth', 2)
+        
+        # Check if we should skip console logging (handled by caller if stack=False)
+        if kwargs.get('skip_console'):
+            extra['skip_console'] = True
+        
+        self.logger.log(level_code, msg, extra=extra, stacklevel=stack_depth)
+
+    def stack(self, level, *messages, **kwargs):
+        kwargs['full_stack'] = True
+        kwargs['stack_depth'] = kwargs.get('stack_depth', 2) + 1
+        self.log(level, *messages, **kwargs)
+
+    def level(self):
+        return self.logger.getEffectiveLevel()
+
+    def get_color(self):
+        return Colors.RESET # Default
 
 logger = LOGGER()
 
-
 def set_log_level(log_level="i"):
-    """
-    This is a helper method which edits the LOGGER instance created on file import and provides a simple interface to set log level
-    :param log_level: possible values = "i", "w", "e", "c", "d", "info", "warning", "error", "critical", "debug"
-    :return: none
-    """
     logger.set_level(log_level)
 
-
 def get_logger():
-    """
-    This is a helper method which returns the instance of the LOGGER class created on file import
-    :return:
-    """
     return logger
 
-
-def log(*messages, sep=" ", end="\n", flush=False, color=None, stack=False, log_level="info", msg="args : ",
-        full_stack=False):
-    """
-    This is a helper method which creates a LOGGER instance on file import and provides a simple interface to log
-    messages
-    you can use the get_logger() method to get the instance of the logger and use it directly
-    :param messages: messages to be printed
-    :param sep: default is " "
-    :param end: default is "\n"
-    :param flush: if True, flushes the output
-    :param color: refer the colour class for available colors
-    :param stack: Prints from where the log method was called
-    :param log_level: possible values = "i", "w", "e", "c", "d", "info", "warning", "error", "critical", "debug"
-    :param msg: message to be printed before the arguments
-    :param full_stack: Prints the full stack trace from where the log method was called
-    :return:
-    """
-    if color:
-        color = color.upper()
-    if stack:
-        logger.log(log_level, *messages, msg=msg, color=color)
-    elif full_stack:
-        logger.stack(log_level, *messages, msg=msg, color=color)
+def log(*messages, sep=" ", end="\n", flush=False, color=None, stack=False, log_level="info", msg="args : ", full_stack=False, **kwargs):
+    # 'msg' prefix is handled differently, we just prepend it if provided
+    if msg and msg != "args : ":
+         messages = (msg,) + messages
+    
+    # If stack or full_stack is True, behave like a logger (formatted)
+    if stack or full_stack:
+        stack_depth = kwargs.get('stack_depth', 3)
+        logger.log(log_level, *messages, sep=sep, color=color, full_stack=full_stack, stack_depth=stack_depth)
     else:
-        level = convert_log_level(log_level)
-        if level >= logger.level():
-            if color and hasattr(Colors, color):
-                color_code = getattr(Colors, color)
-                print(color_code, end="")
-            else:
-                color_code = logger.get_color()
-            messages = [i if isinstance(i, str) else str(i).replace("\r", "\r" + color_code) for i in list(messages).copy()]
-            logger.log(log_level, *messages, msg=msg, color=color, only_to_file=True)
-            print(*messages, sep=sep, end="", flush=flush)
-            if color and hasattr(Colors, color):
-                print(Colors.RESET, end="")
-            print("", end=end)
-
+        # Behave like print() but also log to file
+        # 1. Print to console manually
+        color_code = Colors.get_color(color)
+        reset_code = Colors.RESET if color else ""
+        
+        # Construct message for printing
+        print_msg = sep.join(map(str, messages))
+        
+        if color:
+            sys.stdout.write(color_code)
+        
+        sys.stdout.write(print_msg)
+        
+        if color:
+            sys.stdout.write(reset_code)
+            
+        sys.stdout.write(end)
+        if flush:
+            sys.stdout.flush()
+            
+        # 2. Log to file (skip console)
+        # We need to log it so it appears in the file if file logging is enabled
+        # But we don't want it to appear in console again.
+        # We use a special flag 'skip_console'
+        stack_depth = kwargs.get('stack_depth', 3)
+        logger.log(log_level, *messages, sep=sep, color=color, full_stack=full_stack, stack_depth=stack_depth, skip_console=True)
 
 def info(*messages, sep=" ", end="\n", flush=False, color="blue", stack=False, msg="args : ", full_stack=False):
-    """
-    Wrapper for log log_level=info
-    """
-    log(*messages, sep=sep, end=end, flush=flush, color=color, stack=stack, log_level="info", msg=msg,
-        full_stack=full_stack)
-
+    # User -> info -> log -> logger.log
+    # Depth: 4
+    log(*messages, sep=sep, end=end, flush=flush, color=color, stack=stack, log_level="info", msg=msg, full_stack=full_stack, stack_depth=4)
 
 def debug(*messages, sep=" ", end="\n", flush=False, color=None, stack=False, msg="args : ", full_stack=False):
-    """
-    Wrapper for log log_level=debug
-    """
-    log(*messages, sep=sep, end=end, flush=flush, color=color, stack=stack, log_level="debug", msg=msg,
-        full_stack=full_stack)
-
+    log(*messages, sep=sep, end=end, flush=flush, color=color, stack=stack, log_level="debug", msg=msg, full_stack=full_stack, stack_depth=4)
 
 def warning(*messages, sep=" ", end="\n", flush=False, color="yellow", stack=False, msg="args : ", full_stack=False):
-    """
-        Wrapper for log log_level=warning
-    """
-    log(*messages, sep=sep, end=end, flush=flush, color=color, stack=stack, log_level="warning", msg=msg,
-        full_stack=full_stack)
-
+    log(*messages, sep=sep, end=end, flush=flush, color=color, stack=stack, log_level="warning", msg=msg, full_stack=full_stack, stack_depth=4)
 
 def error(*messages, sep=" ", end="\n", flush=False, color="red", stack=False, msg="args : ", full_stack=False):
-    """
-        Wrapper for log log_level=error
-    """
-    log(*messages, sep=sep, end=end, flush=flush, color=color, stack=stack, log_level="error", msg=msg,
-        full_stack=full_stack)
-
+    log(*messages, sep=sep, end=end, flush=flush, color=color, stack=stack, log_level="error", msg=msg, full_stack=full_stack, stack_depth=4)
 
 def critical(*messages, sep=" ", end="\n", flush=False, color="orange", stack=False, msg="args : ", full_stack=False):
-    """
-    Wrapper for log log_level=critical
-    """
-    log(*messages, sep=sep, end=end, flush=flush, color=color, stack=stack, log_level="critical", msg=msg,
-        full_stack=full_stack)
+    log(*messages, sep=sep, end=end, flush=flush, color=color, stack=stack, log_level="critical", msg=msg, full_stack=full_stack, stack_depth=4)
