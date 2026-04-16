@@ -2,7 +2,7 @@ import asyncio
 import datetime
 from http.cookies import Morsel
 
-import aiohttp
+import httpx
 import time
 from typing import Optional, Any, Dict, List, Tuple, Literal
 
@@ -21,7 +21,7 @@ class Session:
 
     def __init__(self):
         """Initializes the Session."""
-        self._client: Optional[aiohttp.ClientSession] = None
+        self._client: Optional[httpx.AsyncClient] = None
         self._current_url: Optional[str] = None
         self.default_headers: Dict[str, str] = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)'
@@ -37,19 +37,19 @@ class Session:
         }
 
     async def __aenter__(self):
-        """Asynchronously initializes the ClientSession."""
-        self._client = aiohttp.ClientSession(cookie_jar=aiohttp.CookieJar())
+        """Asynchronously initializes the AsyncClient."""
+        self._client = httpx.AsyncClient(follow_redirects=True)
         return self
 
     async def __aexit__(self, exc_type, exc, tb):
-        """Asynchronously closes the ClientSession."""
+        """Asynchronously closes the AsyncClient."""
         if self._client:
-            await self._client.close()
+            await self._client.aclose()
 
     @property
-    def client(self) -> aiohttp.ClientSession:
-        """Provides access to the underlying aiohttp.ClientSession."""
-        if self._client is None or self._client.closed:
+    def client(self) -> httpx.AsyncClient:
+        """Provides access to the underlying httpx.AsyncClient."""
+        if self._client is None or self._client.is_closed:
             raise RuntimeError(
                 "Session is not active. "
                 "Use 'async with Session() as session:' syntax."
@@ -86,7 +86,6 @@ class Session:
         Returns:
             tuple: (status_code, headers, body)
         """
-        # Prepare headers, adding Referer if not manually overridden
         headers = {}
         if self.default_headers:
             headers = self.default_headers.copy()
@@ -100,26 +99,25 @@ class Session:
 
         kwargs["headers"] = headers
 
-        async with self.client.request(method, url, **kwargs) as response:
-            content = None
-            try:
-                if read_as == "json":
-                    content = await response.json()
-                elif read_as == "text":
-                    content = await response.text()
-                elif read_as == "bytes":
-                    content = await response.read()
-                else:
-                    response.release()
-            except (aiohttp.ContentTypeError, asyncio.TimeoutError, Exception) as e:
-                print(f"Error reading response body from {url}: {e}")
-                response.release()
+        if "follow_redirects" not in kwargs:
+            kwargs["follow_redirects"] = True
 
-            # Update current URL if navigation was successful
-            if 200 <= response.status < 300 and update_url:
-                self._current_url = str(response.url)
+        response = await self.client.request(method, url, **kwargs)
+        content = None
+        try:
+            if read_as == "json":
+                content = response.json()
+            elif read_as == "text":
+                content = response.text
+            elif read_as == "bytes":
+                content = response.content
+        except (httpx.DecodingError, asyncio.TimeoutError, Exception) as e:
+            print(f"Error reading response body from {url}: {e}")
 
-            return response.status, response.headers, content
+        if 200 <= response.status_code < 300 and update_url:
+            self._current_url = str(response.url)
+
+        return response.status_code, response.headers, content
 
     async def get(self, url: str, read_as: READ_AS_OPTIONS = "json", **kwargs):
         """
@@ -174,36 +172,6 @@ class Session:
             "GET", url, read_as=read_as, suppress_referer=True, update_url=True, **kwargs
         )
 
-    def _create_cookie_from_dict(
-            self, d: Dict[str, Any]
-    ) -> Morsel:
-        """Helper to create a Morsel object from a dictionary."""
-        name = d.get("name")
-        value = d.get("value")
-
-        m = Morsel()
-        m.set(name, value, value)
-
-        if d.get("domain"):
-            m["domain"] = d.get("domain")
-        if d.get("path"):
-            m["path"] = d.get("path")
-
-        epoch_seconds = d.get("expires")
-        if epoch_seconds:
-            try:
-                dt = datetime.datetime.fromtimestamp(epoch_seconds, tz=datetime.timezone.utc)
-                m["expires"] = dt.strftime("%a, %d %b %Y %H:%M:%S GMT")
-            except (TypeError, ValueError, OSError):
-                pass
-
-        if d.get("secure"):
-            m["secure"] = True
-        if d.get("httponly"):
-            m["httponly"] = True
-
-        return m
-
     async def save_data(self) -> Dict[str, Any]:
         """
         Saves the current session state to a JSON-dumpable dictionary.
@@ -212,20 +180,16 @@ class Session:
             dict: A dictionary containing cookies and the current URL.
         """
         cookies: List[Dict[str, Any]] = []
-        for cookie in self.client.cookie_jar:
-            httponly = False
-            if hasattr(cookie, "rest"):
-                httponly = cookie.rest.get("HttpOnly", cookie.rest.get("httponly"))
-
+        for cookie in self.client.cookies.jar:
             cookies.append(
                 {
-                    "name": cookie.key,
+                    "name": cookie.name,
                     "value": cookie.value,
-                    "domain": getattr(cookie, "domain", ""),
-                    "path": getattr(cookie, "path", "/"),
-                    "expires": getattr(cookie, "expires", None),
-                    "secure": getattr(cookie, "secure", False),
-                    "httponly": bool(httponly),
+                    "domain": cookie.domain,
+                    "path": cookie.path,
+                    "expires": cookie.expires,
+                    "secure": cookie.secure,
+                    "httponly": cookie.has_nonstandard_attr("HttpOnly"),
                 }
             )
         return {"cookies": cookies, "current_url": self._current_url}
@@ -237,8 +201,7 @@ class Session:
         Args:
             data (dict): A dictionary in the format provided by save_data().
         """
-        jar = self.client.cookie_jar
-        jar.clear()
+        self.client.cookies.clear()
         self._current_url = data.get("current_url")
 
         now = int(time.time())
@@ -246,10 +209,11 @@ class Session:
         for cookie_dict in data.get("cookies", []):
             expires = cookie_dict.get("expires")
             if expires is not None and expires < now:
-                continue  # Skip expired cookie
+                continue
 
-            morsel = self._create_cookie_from_dict(cookie_dict)
-            if morsel.key:
-                jar.update_cookies({morsel.key: morsel})
-            else:
-                print('Failed to load cookie due to missing name')
+            self.client.cookies.set(
+                name=cookie_dict["name"],
+                value=cookie_dict["value"],
+                domain=cookie_dict.get("domain", ""),
+                path=cookie_dict.get("path", "/"),
+            )

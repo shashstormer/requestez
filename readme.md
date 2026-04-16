@@ -37,7 +37,37 @@ session.download("https://example.com/file.zip", "file.zip")
 session.download_m3u8_as_mp4("https://example.com/video.m3u8", "video.mp4")
 ```
 
-### 2. Logging Utilities
+### 2. Asynchronous Scraping with `asynchronous.Session`
+
+For high-performance asynchronous tasks, RequestEZ provides an async session powered by `httpx`. It maintains a similar browser-like context (Referer tracking) and supports state persistence.
+
+```python
+import asyncio
+from requestez.asynchronous import Session
+
+async def main():
+    # Use context manager for automatic client cleanup
+    async with Session() as session:
+        # Standard GET/POST
+        status, headers, body = await session.get("https://httpbin.org/get")
+        print(f"Async GET Status: {status}")
+
+        # Browser-like navigation (sets Referer, updates internal current URL)
+        await session.navigate("https://httpbin.org/relative-redirect/1")
+
+        # Save/Load state (Cookies + current URL)
+        state = await session.save_data()
+        
+        async with Session() as session2:
+            await session2.load_data(state)
+            # session2 now has the cookies and referer from session1
+            await session2.get("https://httpbin.org/cookies")
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+### 3. Logging Utilities
 
 RequestEZ features a powerful logging system that integrates with Python's standard `logging` module while providing a simple, colorful API.
 
@@ -78,7 +108,7 @@ get_logger().disable_file_logging()
 4.  INFO (i)
 5.  DEBUG (d)
 
-### 3. Progress Bar
+### 4. Progress Bar
 
 A clean, customizable progress bar for tracking operations.
 
@@ -98,7 +128,7 @@ for i in range(total_items):
     # Or increment: pb.update(plus=1)
 ```
 
-### 4. Parsing Utilities
+### 5. Parsing Utilities
 
 Utilities to parse HTML, JSON, XML, and more.
 
@@ -120,7 +150,7 @@ merged = merge(list1, list2) # [1, 2, 3, 4]
 print(seconds_to_text(3665)) # 01:01:05
 ```
 
-### 5. AES Encryption/Decryption
+### 6. AES Encryption/Decryption
 
 Simple wrapper for AES encryption.
 
