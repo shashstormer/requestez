@@ -67,7 +67,41 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 
-### 3. Logging Utilities
+### 3. Advanced CURL Scraping with `kurl` (Impersonation)
+
+When a website blocks standard `requests` or `httpx` due to TLS/JA3 fingerprinting, use the `kurl` module. It uses `curl_cffi` to impersonate real browsers (Chrome, Edge, Safari).
+
+#### Synchronous kurl
+```python
+from requestez import kurl
+
+# Impersonate Chrome 124 (Default)
+session = kurl.Session(impersonate="chrome124")
+resp = session.get("https://tls.browserleaks.com/json")
+print(resp)
+
+# Supports all standard Session features:
+session.download_m3u8_as_mp4("url", "video.mp4")
+```
+
+#### Asynchronous kurl
+```python
+import asyncio
+from requestez import kurl
+
+async def main():
+    async with kurl.AsyncSession(impersonate="chrome124") as session:
+        status, headers, body = await session.get("https://httpbin.org/get")
+        print(f"kurl Async Status: {status}")
+        
+        # State persistence works identically
+        state = await session.save_data()
+        await session.load_data(state)
+
+asyncio.run(main())
+```
+
+### 4. Logging Utilities
 
 RequestEZ features a powerful logging system that integrates with Python's standard `logging` module while providing a simple, colorful API.
 
@@ -108,7 +142,7 @@ get_logger().disable_file_logging()
 4.  INFO (i)
 5.  DEBUG (d)
 
-### 4. Progress Bar
+### 5. Progress Bar
 
 A clean, customizable progress bar for tracking operations.
 
@@ -128,7 +162,7 @@ for i in range(total_items):
     # Or increment: pb.update(plus=1)
 ```
 
-### 5. Parsing Utilities
+### 6. Parsing Utilities
 
 Utilities to parse HTML, JSON, XML, and more.
 
@@ -150,7 +184,7 @@ merged = merge(list1, list2) # [1, 2, 3, 4]
 print(seconds_to_text(3665)) # 01:01:05
 ```
 
-### 6. AES Encryption/Decryption
+### 7. AES Encryption/Decryption
 
 Simple wrapper for AES encryption.
 
